@@ -12,12 +12,11 @@ pipeline {
         stage('SAST - Bandit Scan') {
             steps {
                 echo '--- Running SAST ---'
-                // || true để pipeline không dừng lại dù tìm thấy lỗi (để chạy tiếp DAST)
+                // ||true để pipeline không dừng lại dù tìm thấy lỗi
                 sh 'bandit -r web.py -f json -o bandit_report.json || true'
             }
         }
 
-        // Giai đoạn 3: Khởi động App (Để chuẩn bị cho DAST)
         stage('Start Web App') {
             steps {
                 echo '--- Starting Web App in Background ---'
@@ -28,13 +27,12 @@ pipeline {
             }
         }
 
-        // Giai đoạn 4: DAST (Kiểm tra động)
         stage('DAST - OWASP ZAP') {
             steps {
                 echo '--- Running DAST ---'
                 script {
-                    // QUAN TRỌNG: Dùng 'host.docker.internal' để container ZAP gọi được về WSL host
-                    def target = "http://host.docker.internal:5000"
+                    // Dùng 'host.docker.internal' để container ZAP gọi được về WSL host
+                    def target = "http://host.docker.internal:5005"
                     
                     try {
                         sh "docker run --rm owasp/zap2docker-stable zap-baseline.py -t ${target} -r zap_report.html"
@@ -52,7 +50,7 @@ pipeline {
             echo '--- Cleaning Up ---'
             // 1. Tắt Web App
             sh 'pkill -f "python3 web.py" || true'
-            // 2. Lưu lại báo cáo để bạn xem
+            // 2. Lưu lại báo cáo xem
             archiveArtifacts artifacts: 'bandit_report.json, zap_report.html', allowEmptyArchive: true
         }
     }
