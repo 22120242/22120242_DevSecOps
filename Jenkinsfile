@@ -5,7 +5,7 @@ pipeline {
         stage('Install Requirements') {
             steps {
                 echo '--- Installing Dependencies ---'
-                sh 'pip install -r requirements.txt'
+                sh 'pip3 install -r requirements.txt --break-system-packages || pip3 install -r requirements.txt'
             }
         }
 
