@@ -31,11 +31,15 @@ pipeline {
             steps {
                 echo '--- Running DAST ---'
                 script {
-                    // Dùng 'host.docker.internal' để container ZAP gọi được về WSL host
-                    def target = "http://host.docker.internal:5005"
+                    // 1. ĐỔI TARGET THÀNH LOCALHOST
+                    // Vì ZAP sẽ dùng chung mạng với Jenkins, nên nó gọi localhost là thấy nhau ngay
+                    def target = "http://127.0.0.1:5005"
                     
                     try {
-                        sh "docker run --rm -v \$(pwd):/zap/wrk:rw -u 0 zaproxy/zap-stable zap-baseline.py -t ${target} -r zap_report.html"
+                        // 2. THÊM THAM SỐ: --network="container:$(hostname)"
+                        // $(hostname) chính là ID của container Jenkins hiện tại.
+                        // Lệnh này ép ZAP chui vào cùng mạng với Jenkins.
+                        sh "docker run --rm -v \$(pwd):/zap/wrk:rw -u 0 --network=\"container:\$(hostname)\" zaproxy/zap-stable zap-baseline.py -t ${target} -r zap_report.html"
                     } catch (Exception e) {
                         echo 'ZAP found security issues (Expected)'
                     }
