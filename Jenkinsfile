@@ -54,6 +54,7 @@ pipeline {
             echo '--- Cleaning Up ---'
             // 1. Tắt Web App
             sh 'pkill -f "python3 web.py" || true'
+            sh 'chmod 666 zap_report.html || true'
             // 2. Lưu lại báo cáo xem
             archiveArtifacts artifacts: 'bandit_report.json, zap_report.html', allowEmptyArchive: true
         }
