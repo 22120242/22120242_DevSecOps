@@ -35,7 +35,7 @@ pipeline {
                     def target = "http://host.docker.internal:5005"
                     
                     try {
-                        sh "docker run --rm owasp/zap2docker-stable zap-baseline.py -t ${target} -r zap_report.html"
+                        sh "docker run --rm zaproxy/zap-stable zap-baseline.py -t ${target} -r zap_report.html"
                     } catch (Exception e) {
                         echo 'ZAP found security issues (Expected)'
                     }
