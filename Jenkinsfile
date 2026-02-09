@@ -12,14 +12,17 @@ pipeline {
     stage('SAST - Semgrep') {
       steps {
         sh '''
-        docker run --rm \
-          -v "$PWD/app:/src" \
-          returntocorp/semgrep \
-          semgrep --config=auto /src
-        '''
-      }
-    }
+        echo "Workspace is: $WORKSPACE"
+        ls -la $WORKSPACE/app
 
+        docker run --rm \
+        -v "$WORKSPACE/app:/src" \
+        returntocorp/semgrep \
+        semgrep --config=auto /src
+        '''
+        }
+    }
+    
     stage('Build Docker Image') {
       steps {
         sh 'docker build -t vuln-app .'
