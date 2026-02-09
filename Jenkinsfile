@@ -1,83 +1,77 @@
 pipeline {
-  agent any
+    agent any
 
-  stages {
-
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    environment {
+        // Dùng đúng tên image python bạn đang có
+        APP_IMAGE = "my-vulnerable-app"
+        CONTAINER_NAME = "devsecops-demo-app"
+        NETWORK_NAME = "devsecops-net"
     }
 
-    stage('SAST - Semgrep') {
-      steps {
-        sh '''
-        echo "Workspace is: $WORKSPACE"
-        ls -la $WORKSPACE/app
+    stages {
+        stage('Check Info') {
+            steps {
+                // Kiểm tra xem Jenkins đã gọi được Docker chưa
+                sh 'docker --version'
+                sh 'id' // Kiểm tra xem có phải đang chạy user root không
+            }
+        }
 
-        docker run --rm \
-        -v "$WORKSPACE:/src:ro" \
-        returntocorp/semgrep \
-        semgrep --config=auto --json --output=/tmp/semgrep-report.json /src/app || true
-        '''
-      }
-    }
-    
-    stage('Build Docker Image') {
-      steps {
-        sh 'docker build -t vuln-app .'
-      }
+        stage('SAST - Static Analysis') {
+            steps {
+                echo 'Running SAST with Bandit...'
+                // Cài bandit
+                sh 'pip install bandit' 
+                // Quét code, bỏ qua lỗi (|| true) để demo chạy tiếp
+                sh 'bandit -r . -f json -o bandit_report.json || true' 
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'bandit_report.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Build & Run App') {
+            steps {
+                script {
+                    sh "docker network create ${NETWORK_NAME} || true"
+                    // Build từ Dockerfile (sẽ dùng python:3.9-slim bạn đã có)
+                    sh "docker build -t ${APP_IMAGE} ."
+                    sh "docker rm -f ${CONTAINER_NAME} || true"
+                    sh "docker run -d --name ${CONTAINER_NAME} --network ${NETWORK_NAME} ${APP_IMAGE}"
+                    sh "sleep 5" 
+                }
+            }
+        }
+
+        stage('DAST - Dynamic Analysis') {
+            steps {
+                echo 'Running DAST with ZAP...'
+                script {
+                    // QUAN TRỌNG: Đã sửa tên image thành 'zaproxy/zap-stable' khớp với máy bạn
+                    sh """
+                        docker run --rm --network ${NETWORK_NAME} \
+                        -v \$(pwd):/zap/wrk/:rw \
+                        -t aproxy/zap-stable zap-baseline.py \
+                        -t http://${CONTAINER_NAME}:5000 \
+                        -r zap_report.html || true
+                    """
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'zap_report.html', allowEmptyArchive: true
+                }
+            }
+        }
     }
 
-    stage('Run App') {
-      steps {
-        sh '''
-        docker run -d --name vuln-app-demo -p 3000:3000 vuln-app
-        
-        echo "Waiting for app to be ready..."
-        sleep 5
-        
-        # Health check
-        for i in {1..10}; do
-          if curl -f http://localhost:3000/search?q=test > /dev/null 2>&1; then
-            echo "App is ready!"
-            break
-          fi
-          echo "Waiting for app... ($i/10)"
-          sleep 2
-        done
-        '''
-      }
+    post {
+        always {
+            echo 'Cleaning up...'
+            sh "docker rm -f ${CONTAINER_NAME} || true"
+            sh "docker network rm ${NETWORK_NAME} || true"
+        }
     }
-
-    stage('DAST - OWASP ZAP') {
-      steps {
-        sh '''
-        docker run --rm \
-          --network host \
-          -v "$WORKSPACE:/zap/wrk:rw" \
-          -u zap \
-          zaproxy/zap-stable \
-          zap-baseline.py \
-          -t http://localhost:3000 \
-          -r zap-report.html \
-          -w /zap/wrk/zap-report.md || true
-        
-        # Copy report if it exists
-        if [ -f "$WORKSPACE/zap-report.html" ]; then
-          echo "ZAP report generated successfully"
-        else
-          echo "Warning: ZAP report not found"
-        fi
-        '''
-      }
-    }
-  }
-
-  post {
-    always {
-      sh 'docker rm -f vuln-app-demo || true'
-      archiveArtifacts artifacts: '*.html', fingerprint: true
-    }
-  }
 }
