@@ -12,15 +12,6 @@ pipeline {
         NETWORK_NAME = "cicd-net"
     }
 
-    stages {
-        stage('Checkout Code') {
-            steps {
-                // Nếu bạn cấu hình "Pipeline from SCM" thì bước này tự động.
-                // Nếu chạy "Pipeline script", bạn cần git url:
-                git branch: 'main', url: 'https://github.com/TênGitHubCủaBạn/TênRepo.git'
-            }
-        }
-
         stage('SAST - Security Scan') {
             steps {
                 echo '=== Running Bandit Scan ==='
@@ -70,7 +61,7 @@ pipeline {
             steps {
                 echo '=== Pushing to Docker Registry ==='
                 // Sử dụng credentials ID đã tạo ở Bước 1
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-id', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     script {
                         // Đăng nhập an toàn (không lộ pass trong log)
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
