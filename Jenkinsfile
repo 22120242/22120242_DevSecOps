@@ -39,6 +39,7 @@ pipeline {
         sh '''
         docker run --rm \
           --network host \
+          -v "$PWD:/zap/wrk" \
           zaproxy/zap-stable \
           zap-baseline.py \
           -t http://localhost:3000 \
