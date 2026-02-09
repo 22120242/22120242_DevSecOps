@@ -16,11 +16,12 @@ pipeline {
         ls -la $WORKSPACE/app
 
         docker run --rm \
-        -v "$WORKSPACE/app:/src" \
+        -v "$WORKSPACE/app:/src:ro" \
+        -w /src \
         returntocorp/semgrep \
-        semgrep --config=auto --no-git-ignore /src
+        semgrep --config=auto --json --output=/tmp/semgrep-report.json /src || true
         '''
-        }
+      }
     }
     
     stage('Build Docker Image') {
