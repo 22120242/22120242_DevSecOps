@@ -17,9 +17,11 @@ pipeline {
         stage('SAST - Security Scan') {
             steps {
                 echo '=== Running Bandit Scan ==='
-                // Cài đặt và quét
-                sh 'pip install bandit'
-                // || true để pipeline không dừng nếu phát hiện lỗi (để chạy tiếp demo)
+                
+                // SỬA DÒNG NÀY: Thêm --break-system-packages
+                sh 'pip install bandit --break-system-packages' 
+                
+                // Chạy bandit (giữ nguyên)
                 sh 'bandit -r . -f json -o bandit_report.json || true'
             }
         }
