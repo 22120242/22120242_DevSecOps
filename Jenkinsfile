@@ -18,7 +18,7 @@ pipeline {
         docker run --rm \
         -v "$WORKSPACE/app:/src" \
         returntocorp/semgrep \
-        semgrep --config=auto /src
+        semgrep --config=auto --no-git-ignore /src
         '''
         }
     }
