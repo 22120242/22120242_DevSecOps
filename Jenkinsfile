@@ -2,21 +2,24 @@ pipeline {
     agent any
 
     environment {
+        // Thông tin cấu hình
         DOCKER_USER = '22120242' 
-        
         IMAGE_NAME = 'devsecops'
-        
         FULL_IMAGE = "${DOCKER_USER}/${IMAGE_NAME}:v${BUILD_NUMBER}" 
         
         CONTAINER_NAME = "devsecops-container"
         NETWORK_NAME = "cicd-net"
     }
 
+    stages {
+        // KHÔNG CẦN stage('Checkout Code') vì Jenkins đã tự làm việc này
+
         stage('SAST - Security Scan') {
             steps {
                 echo '=== Running Bandit Scan ==='
+                // Cài đặt và quét
                 sh 'pip install bandit'
-                // || true để không dừng pipeline nếu có lỗi (để demo chạy tiếp)
+                // || true để pipeline không dừng nếu phát hiện lỗi (để chạy tiếp demo)
                 sh 'bandit -r . -f json -o bandit_report.json || true'
             }
         }
@@ -34,15 +37,17 @@ pipeline {
             steps {
                 echo '=== Running OWASP ZAP ==='
                 script {
-                    // 1. Tạo mạng
+                    // 1. Tạo mạng để các container nhìn thấy nhau
                     sh "docker network create ${NETWORK_NAME} || true"
                     
-                    // 2. Chạy App cần test
+                    // 2. Chạy ứng dụng web (Target)
                     sh "docker run -d --rm --name ${CONTAINER_NAME} --network ${NETWORK_NAME} ${FULL_IMAGE}"
-                    sh "sleep 5" // Đợi app khởi động
                     
-                    // 3. Chạy ZAP Scan
-                    // Lưu ý: Dùng image bạn đã có: zaproxy/zap-stable
+                    // Đợi 5s cho app khởi động xong
+                    sh "sleep 5" 
+                    
+                    // 3. Chạy ZAP để tấn công thử
+                    // Lưu ý: Dùng image ZAP có sẵn trên máy bạn
                     sh """
                         docker run --rm --network ${NETWORK_NAME} \
                         -v \$(pwd):/zap/wrk/:rw \
@@ -51,7 +56,7 @@ pipeline {
                         -r zap_report.html || true
                     """
                     
-                    // 4. Tắt App sau khi scan xong
+                    // 4. Tắt ứng dụng sau khi scan xong
                     sh "docker stop ${CONTAINER_NAME}"
                 }
             }
@@ -60,16 +65,16 @@ pipeline {
         stage('Push to DockerHub') {
             steps {
                 echo '=== Pushing to Docker Registry ==='
-                // Sử dụng credentials ID đã tạo ở Bước 1
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-id', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                // YÊU CẦU: Phải tạo Credentials ID là 'dockerhub-creds' trên Jenkins trước
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     script {
-                        // Đăng nhập an toàn (không lộ pass trong log)
+                        // Đăng nhập
                         sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
                         
-                        // Push image lên DockerHub
+                        // Push image version hiện tại
                         sh "docker push ${FULL_IMAGE}"
                         
-                        // Push thêm tag 'latest' (tùy chọn)
+                        // (Tùy chọn) Push thêm tag latest
                         sh "docker tag ${FULL_IMAGE} ${DOCKER_USER}/${IMAGE_NAME}:latest"
                         sh "docker push ${DOCKER_USER}/${IMAGE_NAME}:latest"
                     }
@@ -80,11 +85,12 @@ pipeline {
 
     post {
         always {
-            // Dọn dẹp sau khi chạy xong
-            echo 'Cleaning up workspace...'
+            echo '=== Cleaning up ==='
+            // Dọn dẹp mạng và logout
             sh "docker network rm ${NETWORK_NAME} || true"
             sh "docker logout"
-            // Lưu lại báo cáo
+            
+            // Lưu lại báo cáo để xem trên Jenkins
             archiveArtifacts artifacts: 'bandit_report.json, zap_report.html', allowEmptyArchive: true
         }
     }
