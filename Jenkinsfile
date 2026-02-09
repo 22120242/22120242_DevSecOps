@@ -13,7 +13,7 @@ pipeline {
       steps {
         sh '''
         docker run --rm \
-          -v "$PWD:/src" \
+          -v "$PWD/app:/src" \
           returntocorp/semgrep \
           semgrep --config=auto /src
         '''
@@ -39,7 +39,7 @@ pipeline {
         sh '''
         docker run --rm \
           --network host \
-          owasp/zap2docker-stable \
+          zaproxy/zap-stable \
           zap-baseline.py \
           -t http://localhost:3000 \
           -r zap-report.html

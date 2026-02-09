@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 
 app.get('/search', (req, res) => {
-  const q = req.query.q;   // ❌ unsanitized input
+  const q = req.query.q;   // unsanitized input
   res.send("You searched for: " + q); // XSS
 });
 
